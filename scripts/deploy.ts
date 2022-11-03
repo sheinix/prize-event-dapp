@@ -1,4 +1,5 @@
 import { ethers } from "hardhat"
+import { VotingToken } from "../typechain-types"
 
 async function deployContracts() {
     console.log("Deploying Voting Token First...")
@@ -19,6 +20,8 @@ async function deployContracts() {
     await prizeEventContract.deployed()
 
     console.log(`PrizeEventHandler deployed to address: ${prizeEventContract.address}`)
+
+    return { voteToken, prizeEventContract }
 }
 
 export default deployContracts

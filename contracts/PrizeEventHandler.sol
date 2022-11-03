@@ -27,14 +27,17 @@ contract PrizeEventHandler is AccessControl {
     }
 
     // Events:
-    event PrizeEvebtCreated(
+    event PrizeEventCreated(
         uint256 indexed eventId,
         uint256 indexed prizeAmount,
         uint256 indexed referenceBlock
     );
 
     //@notice the array of prize events created
-    PrizeEvent[] public s_prizeEvents;
+    PrizeEvent[] public s_eventsArray;
+
+    // @notice the eventId -> PrizeEvent mapping
+    mapping(uint256 => PrizeEvent) public s_prizeEvents;
 
     // @notice the nested mapping:
     // participant Address -> mapp of eventId to Votes - same addr can participate multiple events.
@@ -63,9 +66,8 @@ contract PrizeEventHandler is AccessControl {
         uint256[] memory _winnersDistribution,
         address[] memory _voters,
         address[] memory _participants
-    ) public validParticipants(_participants) {
-        // Need to Approve the contract for the token & amount ✅
-
+    ) public validParticipants(_participants) returns (uint256) {
+        // (Needs approval first)
         // Transfer the Token:
         IERC20 tokenPrize = IERC20(_prizeToken);
 
@@ -74,14 +76,15 @@ contract PrizeEventHandler is AccessControl {
         }
 
         // If succeed create the storage:
-        registerEvent(
-            _prizeAmount,
-            _referenceBlock,
-            _prizeToken,
-            _winnersDistribution,
-            _voters,
-            _participants
-        );
+        return
+            registerEvent(
+                _prizeAmount,
+                _referenceBlock,
+                _prizeToken,
+                _winnersDistribution,
+                _voters,
+                _participants
+            );
     }
 
     function registerEvent(
@@ -91,7 +94,7 @@ contract PrizeEventHandler is AccessControl {
         uint256[] memory _winnersDistribution,
         address[] memory _voters,
         address[] memory _participants
-    ) internal validParticipants(_participants) {
+    ) internal validParticipants(_participants) returns (uint256) {
         uint256 newEventId = s_eventIdCounter.current();
 
         for (uint256 i = 0; i < _participants.length; i++) {
@@ -106,18 +109,25 @@ contract PrizeEventHandler is AccessControl {
             _winnersDistribution,
             _voters
         );
-        s_prizeEvents.push(newPrizeEvent);
+
+        s_eventsArray.push(newPrizeEvent);
+        s_prizeEvents[newEventId] = newPrizeEvent;
 
         s_eventIdCounter.increment();
 
-        emit PrizeEvebtCreated(newEventId, _prizeAmount, _referenceBlock);
+        emit PrizeEventCreated(newEventId, _prizeAmount, _referenceBlock);
+
+        return newEventId;
     }
 
-    function approveToken(address tokenPrize, uint256 amount) public {
-        IERC20 eventToken = IERC20(tokenPrize);
-
-        if (!eventToken.approve(address(this), amount)) {
-            revert PrizeEventHandler__ApprovalFailed(tokenPrize, amount);
-        }
+    function getPrizeEvent(uint256 eventId) public view returns (PrizeEvent memory) {
+        return s_prizeEvents[eventId];
     }
+    // function approveToken(address tokenPrize, uint256 amount) public {
+    //     IERC20 eventToken = IERC20(tokenPrize);
+
+    //     if (!eventToken.approve(address(this), amount)) {
+    //         revert PrizeEventHandler__ApprovalFailed(tokenPrize, amount);
+    //     }
+    // }
 }
