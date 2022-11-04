@@ -6,19 +6,26 @@ import "hardhat-deploy"
 
 const config: HardhatUserConfig = {
     solidity: {
-        version: "0.8.17",
+        compilers: [
+            {
+                version: "0.8.17",
+            },
+            {
+                version: "0.8.4",
+            },
+        ],
     },
     namedAccounts: {
         deployer: 0,
         sponsor: 1,
-        voter1: 2,
-        voter2: 3,
-        voter3: 4,
-        participant1: 5,
-        participant2: 6,
-        participant3: 7,
-        nonParticipant: 8,
-        nonVoter: 9,
+        voter1Addr: 2,
+        voter2Addr: 3,
+        voter3Addr: 4,
+        participant1Addr: 5,
+        participant2Addr: 6,
+        participant3Addr: 7,
+        nonParticipantAddr: 8,
+        nonVoterAddr: 9,
     },
 }
 

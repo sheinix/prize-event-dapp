@@ -1,23 +1,29 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./VotingToken.sol";
 
-interface ITokenizedVotes {
-    function getPastVotes(address, uint256) external view returns (uint256);
-}
+// interface ITokenizedVotes {
+//     function getPastVotes(address, uint256) external view returns (uint256);
+// }
 
 error PrizeEventHandler__TooManyParticipantsAtOnce();
 error PrizeEventHandler__ApprovalFailed(address token, uint256 amount);
 error PrizeEventHandler__RegistrationFailed(address token, uint256 amount);
+error PrizeEventHandler__NotAValidEvent(uint256 eventId);
+error PrizeEventHandler__VoterNotAllowed(uint256 eventId, address voter);
+error PrizeEventHandler__OnlyOwnerOfEventAllowed();
+error PrizeEventHandler__VotingFailed(uint256 eventId, address participant, uint256 amountVotes);
 
 contract PrizeEventHandler is AccessControl {
     using Counters for Counters.Counter;
 
     struct PrizeEvent {
         uint256 eventId;
+        address owner;
         uint256 prizeAmount;
         uint256 referenceBlock;
         IERC20 prizeToken;
@@ -33,7 +39,7 @@ contract PrizeEventHandler is AccessControl {
         uint256 indexed referenceBlock
     );
 
-    //@notice the array of prize events created
+    //@notice the array of prize events created (do we actually need it?)
     PrizeEvent[] public s_eventsArray;
 
     // @notice the eventId -> PrizeEvent mapping
@@ -43,18 +49,45 @@ contract PrizeEventHandler is AccessControl {
     // participant Address -> mapp of eventId to Votes - same addr can participate multiple events.
     mapping(address => mapping(uint256 => uint256)) public s_participantVotes;
 
-    ITokenizedVotes public s_votingToken;
+    VotingToken public s_votingToken;
 
     Counters.Counter private s_eventIdCounter;
 
     constructor(address _tokenVoteContractAddress) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        s_votingToken = ITokenizedVotes(_tokenVoteContractAddress);
+        s_votingToken = VotingToken(_tokenVoteContractAddress);
     }
 
     modifier validParticipants(address[] memory participants) {
         if (participants.length > 10) {
             revert PrizeEventHandler__TooManyParticipantsAtOnce();
+        }
+        _;
+    }
+
+    modifier validVoter(uint256 eventId) {
+        PrizeEvent memory prizeEvent = s_prizeEvents[eventId];
+        for (uint256 i = 0; i < prizeEvent.voters.length; i++) {
+            if (prizeEvent.voters[i] == msg.sender) {
+                return;
+            }
+        }
+        revert PrizeEventHandler__VoterNotAllowed(eventId, msg.sender);
+        _;
+    }
+
+    modifier validEvent(uint256 eventId) {
+        if (s_prizeEvents[eventId].owner != address(0)) {
+            return;
+        }
+        revert PrizeEventHandler__NotAValidEvent(eventId);
+        _;
+    }
+
+    modifier onlyOwnerOf(uint256 eventId) {
+        PrizeEvent memory prizeEvent = s_prizeEvents[eventId];
+        if (prizeEvent.owner != msg.sender) {
+            revert PrizeEventHandler__OnlyOwnerOfEventAllowed();
         }
         _;
     }
@@ -103,6 +136,7 @@ contract PrizeEventHandler is AccessControl {
 
         PrizeEvent memory newPrizeEvent = PrizeEvent(
             s_eventIdCounter.current(),
+            msg.sender,
             _prizeAmount,
             _referenceBlock,
             IERC20(_prizeToken),
@@ -120,14 +154,27 @@ contract PrizeEventHandler is AccessControl {
         return newEventId;
     }
 
+    function vote(
+        uint256 eventId,
+        address participant,
+        uint256 amountOfVotes
+    ) public validEvent(eventId) validVoter(eventId) {
+        if (!s_votingToken.transferFrom(msg.sender, address(this), amountOfVotes)) {
+            revert PrizeEventHandler__VotingFailed(eventId, participant, amountOfVotes);
+        }
+
+        s_participantVotes[participant][eventId] += amountOfVotes;
+    }
+
     function getPrizeEvent(uint256 eventId) public view returns (PrizeEvent memory) {
         return s_prizeEvents[eventId];
     }
-    // function approveToken(address tokenPrize, uint256 amount) public {
-    //     IERC20 eventToken = IERC20(tokenPrize);
 
-    //     if (!eventToken.approve(address(this), amount)) {
-    //         revert PrizeEventHandler__ApprovalFailed(tokenPrize, amount);
-    //     }
-    // }
+    function getVotesForParticipantInEvent(uint256 eventId, address participant)
+        public
+        view
+        returns (uint256)
+    {
+        return s_participantVotes[participant][eventId];
+    }
 }

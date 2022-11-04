@@ -113,10 +113,38 @@ describe("PrizeEventHandler", function () {
                     )
                 ).to.emit(`PrizeEventCreated(${0}, ${prizeAmount}, ${referenceBlock})`)
             })
+        })
+    })
 
-            // it("Shouldn't fail if the unlockTime has arrived and the owner calls it", async function () {
-            //     // await expect(lock.withdraw()).not.to.be.reverted
-            // })
+    describe("Vote", function () {
+        it("Should revert with not a valid event", async function () {
+            const { participant1 } = await getNamedAccounts()
+            await expect(
+                prizeEventContract.vote(1, participant1, 20)
+            ).to.be.revertedWithCustomError(prizeEventContract, `PrizeEventHandler__NotAValidEvent`)
+        })
+
+        it("Should revert with not a valid voter", async function () {
+            const { voter1Addr, participant1Addr } = await getNamedAccounts()
+            const voter1 = await ethers.getSigner(voter1Addr)
+            voters.push(voter1Addr)
+
+            await testToken.approve(prizeEventContract.address, totalSupply)
+            await prizeEventContract.setupEvent(
+                prizeAmount,
+                referenceBlock,
+                testToken.address,
+                winnersDistribution,
+                voters,
+                participants
+            )
+
+            await expect(
+                prizeEventContract.connect(voter1).vote(0, participant1Addr, 20)
+            ).to.be.revertedWithCustomError(
+                prizeEventContract,
+                `PrizeEventHandler__VoterNotAllowed`
+            )
         })
     })
 })
