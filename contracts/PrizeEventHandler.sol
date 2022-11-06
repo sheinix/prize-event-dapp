@@ -30,10 +30,11 @@ error PrizeEventHandler__VotingFailed(uint256 eventId, address participant, uint
 error PrizeEventHandler__EventClosed(uint256 eventId);
 error PrizeEventHandler__ParticipantAlreadyRegistered(uint256 eventId, address participant);
 error PrizeEventHandler__NotValidParticipantForEvent(address participant, uint256 eventId);
+error PrizeEventHandler__InvalidPrizeClaim(address participant, address tokenPrize);
 
 contract PrizeEventHandler is AccessControl {
     using Counters for Counters.Counter;
-    using SafeMath for int256;
+    using SafeMath for uint256;
 
     enum EventStatus {
         OPEN,
@@ -73,7 +74,7 @@ contract PrizeEventHandler is AccessControl {
 
     // @notice the nested mapping:
     // participant Address -> map of TokenPrize to Balance in that token - used to claim prizes for winners.
-    mapping(address => mapping(address => uint256)) public s_participantBalances;
+    mapping(address => mapping(IERC20 => uint256)) public s_participantBalances;
 
     ITokenizedVotes public s_votingToken;
 
@@ -134,6 +135,13 @@ contract PrizeEventHandler is AccessControl {
         _;
     }
 
+    modifier validClaim(address tokenPrize) {
+        if (s_participantBalances[msg.sender][IERC20(tokenPrize)] <= 0) {
+            revert PrizeEventHandler__InvalidPrizeClaim(msg.sender, tokenPrize);
+        }
+        _;
+    }
+
     function setupEvent(
         uint256 _prizeAmount,
         uint256 _referenceBlock,
@@ -159,6 +167,8 @@ contract PrizeEventHandler is AccessControl {
             _voters,
             _participants
         );
+
+        //s_votingToken.grantRole(MINTER_ROLE, msg.sender);
 
         // TODO: Assign Voting Token Minter Role to the event creator.
     }
@@ -248,23 +258,32 @@ contract PrizeEventHandler is AccessControl {
         // Slice winners (no other way for now in solidity):
         address[] memory winners = sliceParticipants(sortedParticipants, amountOfWinners);
 
-        // TODO: what happens when we have ties? --> Out of Scope (i guess)
+        // TODO: what happens when we have ties? --> Out of Scope
 
-        distributePrizeForEvent(eventId, winners, prizeAmount, prizeEvent.prizeToken);
+        distributePrize(
+            winners,
+            prizeEvent.winnersDistribution,
+            prizeAmount,
+            prizeEvent.prizeToken
+        );
 
-        // 3. Set the prize amount balances and tokens for them to claim
         emit PrizeEventClosed(eventId, prizeAmount);
     }
 
-    function distributePrizeForEvent(
-        uint256 eventId,
+    function distributePrize(
         address[] memory winners,
+        uint256[] memory winnersDistribution,
         uint256 prizeAmount,
         IERC20 tokenPrize
     ) private {
+        require(
+            winnersDistribution.length == winners.length,
+            "Winners Array & Distribution Array must have the same length"
+        );
+
         for (uint256 i = 0; i < winners.length; i++) {
-            // TODO: Do the % calculation here AND then assign to the participant balance.
-            //  s_participantBalances[winners[i]][tokenPrize] = //
+            uint256 prizeDist = prizeAmount.div(100).mul(winnersDistribution[i]);
+            s_participantBalances[winners[i]][tokenPrize] = prizeDist;
         }
     }
 
@@ -315,8 +334,16 @@ contract PrizeEventHandler is AccessControl {
         return winners;
     }
 
-    function claimPrizeIn(address tokenAddress) public {
-        // TODO: Used for pull over push pattern - use  s_participantBalances[winners[i]][tokenAddress] =
+    /**
+     * @dev needs approval of prize token first
+     */
+    function claimPrizeIn(address tokenAddress) public validClaim(tokenAddress) {
+        // First update balance then send tokens.
+        IERC20 prizeToken = IERC20(tokenAddress);
+        uint256 winnerBalance = s_participantBalances[msg.sender][prizeToken];
+        s_participantBalances[msg.sender][prizeToken] = 0;
+
+        prizeToken.transferFrom(address(this), msg.sender, winnerBalance);
     }
 
     function getPrizeEvent(uint256 eventId) public view returns (PrizeEvent memory) {
@@ -329,6 +356,10 @@ contract PrizeEventHandler is AccessControl {
         returns (uint256)
     {
         return s_participantVotes[participant][eventId];
+    }
+
+    function getPrizeTokenAddressFor(uint256 eventId) public view returns (IERC20) {
+        return s_prizeEvents[eventId].prizeToken;
     }
 
     function addressExists(address addressaToFind, address[] memory addressesArray)
