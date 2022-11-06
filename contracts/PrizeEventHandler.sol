@@ -4,11 +4,19 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./VotingToken.sol";
 
-// interface ITokenizedVotes {
-//     function getPastVotes(address, uint256) external view returns (uint256);
-// }
+// NOTE: We could be using directly VotingToken but there;s a weird solidity warning bug (https://github.com/ethereum/solidity/issues/11522)
+// import "./VotingToken.sol";
+
+interface ITokenizedVotes {
+    function getPastVotes(address, uint256) external view returns (uint256);
+
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) external returns (bool);
+}
 
 error PrizeEventHandler__TooManyParticipantsAtOnce();
 error PrizeEventHandler__ApprovalFailed(address token, uint256 amount);
@@ -49,13 +57,13 @@ contract PrizeEventHandler is AccessControl {
     // participant Address -> mapp of eventId to Votes - same addr can participate multiple events.
     mapping(address => mapping(uint256 => uint256)) public s_participantVotes;
 
-    VotingToken public s_votingToken;
+    ITokenizedVotes public s_votingToken;
 
     Counters.Counter private s_eventIdCounter;
 
     constructor(address _tokenVoteContractAddress) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        s_votingToken = VotingToken(_tokenVoteContractAddress);
+        s_votingToken = ITokenizedVotes(_tokenVoteContractAddress);
     }
 
     modifier validParticipants(address[] memory participants) {
@@ -65,22 +73,19 @@ contract PrizeEventHandler is AccessControl {
         _;
     }
 
-    modifier validVoter(uint256 eventId) {
-        PrizeEvent memory prizeEvent = s_prizeEvents[eventId];
-        for (uint256 i = 0; i < prizeEvent.voters.length; i++) {
-            if (prizeEvent.voters[i] == msg.sender) {
-                return;
-            }
+    modifier validVoter(uint256 eventId, address voter) {
+        PrizeEvent memory prizeEvent = getPrizeEvent(eventId);
+        bool isValidVoter = addressExists(voter, prizeEvent.voters);
+        if (!isValidVoter) {
+            revert PrizeEventHandler__VoterNotAllowed(eventId, voter);
         }
-        revert PrizeEventHandler__VoterNotAllowed(eventId, msg.sender);
         _;
     }
 
     modifier validEvent(uint256 eventId) {
-        if (s_prizeEvents[eventId].owner != address(0)) {
-            return;
+        if (s_prizeEvents[eventId].owner == address(0)) {
+            revert PrizeEventHandler__NotAValidEvent(eventId);
         }
-        revert PrizeEventHandler__NotAValidEvent(eventId);
         _;
     }
 
@@ -158,7 +163,7 @@ contract PrizeEventHandler is AccessControl {
         uint256 eventId,
         address participant,
         uint256 amountOfVotes
-    ) public validEvent(eventId) validVoter(eventId) {
+    ) public validEvent(eventId) validVoter(eventId, msg.sender) {
         if (!s_votingToken.transferFrom(msg.sender, address(this), amountOfVotes)) {
             revert PrizeEventHandler__VotingFailed(eventId, participant, amountOfVotes);
         }
@@ -176,5 +181,19 @@ contract PrizeEventHandler is AccessControl {
         returns (uint256)
     {
         return s_participantVotes[participant][eventId];
+    }
+
+    function addressExists(address addressaToFind, address[] memory addressesArray)
+        public
+        pure
+        returns (bool)
+    {
+        for (uint256 i = 0; i < addressesArray.length; i++) {
+            if (addressesArray[i] == addressaToFind) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
