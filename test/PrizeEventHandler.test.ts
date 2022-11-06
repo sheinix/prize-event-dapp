@@ -154,31 +154,6 @@ describe("PrizeEventHandler", function () {
             )
         })
 
-        // TODO: Do this on UPDATE methods:
-        // it("Should revert with only owner of event", async function () {
-        //     const { voter1Addr, nonVoterAddr, participant1Addr } = await getNamedAccounts()
-        //     const nonVoter = await ethers.getSigner(nonVoterAddr)
-        //     voters.push(voter1Addr)
-
-        //     await testToken.approve(prizeEventContract.address, totalSupply)
-        //     await prizeEventContract.setupEvent(
-        //         prizeAmount,
-        //         referenceBlock,
-        //         testToken.address,
-        //         winnersDistribution,
-        //         voters,
-        //         participants
-        //     )
-
-        //     // Connect with non-registered voter and vote for participant1
-        //     await expect(
-        //         prizeEventContract.connect(nonVoter).vote(0, participant1Addr, 20)
-        //     ).to.be.revertedWithCustomError(
-        //         prizeEventContract,
-        //         `PrizeEventHandler__OnlyOwnerOfEventAllowed`
-        //     )
-        // })
-
         it("Should revert with insufficient allowance", async function () {
             const { voter1Addr, participant1Addr } = await getNamedAccounts()
             const voter = await ethers.getSigner(voter1Addr)
@@ -237,4 +212,50 @@ describe("PrizeEventHandler", function () {
             )
         })
     })
+    describe("Close Event", function () {
+        it("Should revert with insufficient allowance", async function () {
+            const { voter1Addr, participant1Addr } = await getNamedAccounts()
+            const voter = await ethers.getSigner(voter1Addr)
+            voters.push(voter1Addr)
+
+            await testToken.approve(prizeEventContract.address, totalSupply)
+            await prizeEventContract.setupEvent(
+                prizeAmount,
+                referenceBlock,
+                testToken.address,
+                winnersDistribution,
+                voters,
+                participants
+            )
+
+            // Connect with registered voter and vote for participant1
+            await expect(
+                prizeEventContract.connect(voter).vote(0, participant1Addr, 20)
+            ).to.be.revertedWith(`ERC20: insufficient allowance`)
+        })
+    })
+    // TODO: Do this on UPDATE methods:
+    // it("Should revert with only owner of event", async function () {
+    //     const { voter1Addr, nonVoterAddr, participant1Addr } = await getNamedAccounts()
+    //     const nonVoter = await ethers.getSigner(nonVoterAddr)
+    //     voters.push(voter1Addr)
+
+    //     await testToken.approve(prizeEventContract.address, totalSupply)
+    //     await prizeEventContract.setupEvent(
+    //         prizeAmount,
+    //         referenceBlock,
+    //         testToken.address,
+    //         winnersDistribution,
+    //         voters,
+    //         participants
+    //     )
+
+    //     // Connect with non-registered voter and vote for participant1
+    //     await expect(
+    //         prizeEventContract.connect(nonVoter).vote(0, participant1Addr, 20)
+    //     ).to.be.revertedWithCustomError(
+    //         prizeEventContract,
+    //         `PrizeEventHandler__OnlyOwnerOfEventAllowed`
+    //     )
+    // })
 })
