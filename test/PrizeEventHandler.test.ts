@@ -4,61 +4,54 @@ import { expect, assert, Assertion } from "chai"
 import { ethers, getNamedAccounts } from "hardhat"
 import deployContracts from "../scripts/deploy"
 import { BigNumber, Signer } from "ethers"
-import { PrizeEventHandler, VotingToken, TestToken } from "../typechain-types"
+import { PrizeEventHandler, VotingToken } from "../typechain-types"
 import { hrtime } from "process"
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 
 describe("PrizeEventHandler", function () {
     let prizeAmount: BigNumber
     let referenceBlock: BigNumber
-    let daiAddress: string
     let winnersDistribution: bigint[] = []
     var voters: string[]
     var participants: string[]
-    let totalSupply: string
     let prizeEventContract: PrizeEventHandler
-    let voteToken: VotingToken
-    let testToken: TestToken
+    let votingToken: VotingToken
     let minterRole: string
+    let burnerRole: string
+    let owner: SignerWithAddress, addr1: SignerWithAddress
+
+    const amountToBeSent = ethers.utils.parseEther("1")
+    const votingTokenPrice = ethers.utils.parseEther("0.01")
 
     beforeEach(async () => {
+        ;[owner, addr1] = await ethers.getSigners()
+
         // Deploy Contracts:
         const VotingToken = await ethers.getContractFactory("VotingToken")
-        voteToken = await VotingToken.deploy()
+        votingToken = await VotingToken.deploy()
+        await votingToken.deployed()
+
         const PrizeEventHandler = await ethers.getContractFactory("PrizeEventHandler")
-        prizeEventContract = await PrizeEventHandler.deploy(voteToken.address)
+        prizeEventContract = await PrizeEventHandler.deploy(votingToken.address)
         await prizeEventContract.deployed()
-        const TestToken = await ethers.getContractFactory("TestToken")
-        totalSupply = ethers.utils.parseEther("100000").toString() //(10 ** 9).toString()
-        testToken = await TestToken.deploy(totalSupply)
-        await testToken.deployed()
 
         // Prepare values:
         prizeAmount = ethers.utils.parseEther("1")
         referenceBlock = BigNumber.from(2000000)
-        daiAddress = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
         winnersDistribution.push(BigInt(50))
         winnersDistribution.push(BigInt(30))
         winnersDistribution.push(BigInt(20))
         voters = []
-        participants = []
-        minterRole = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"))
+        participants = [owner.address, addr1.address]
+        minterRole = await votingToken.MINTER_ROLE()
+        burnerRole = await votingToken.BURNER_ROLE()
+
+        await votingToken.grantRole(minterRole, prizeEventContract.address)
+        await votingToken.grantRole(burnerRole, prizeEventContract.address)
     })
 
     describe("Event Registration", function () {
         describe("Register", function () {
-            it("Should revert with insufficent allowance", async function () {
-                await expect(
-                    prizeEventContract.setupEvent(
-                        prizeAmount,
-                        referenceBlock,
-                        testToken.address,
-                        winnersDistribution,
-                        voters,
-                        participants
-                    )
-                ).to.be.revertedWith(`ERC20: insufficient allowance`)
-            })
-
             it("Should revert with too many participants failed", async function () {
                 const { participant1Addr } = await getNamedAccounts()
                 for (let i = 0; i < 11; i++) {
@@ -68,7 +61,6 @@ describe("PrizeEventHandler", function () {
                     prizeEventContract.setupEvent(
                         prizeAmount,
                         referenceBlock,
-                        daiAddress,
                         winnersDistribution,
                         voters,
                         participants
@@ -79,46 +71,82 @@ describe("PrizeEventHandler", function () {
                 )
             })
 
-            it("Should deposit token and Register Event", async function () {
-                await testToken.approve(prizeEventContract.address, totalSupply)
-
-                await prizeEventContract.setupEvent(
-                    prizeAmount,
-                    referenceBlock,
-                    testToken.address,
-                    winnersDistribution,
-                    voters,
-                    participants
-                )
-
-                // Assert
-                // Event created:
-                const prizeEvent = await prizeEventContract.getPrizeEvent(1)
-                assert.equal(prizeEvent[0].toString(), "0")
-
-                // Token Deposited:
-                const balanceOfContract = await testToken.balanceOf(prizeEventContract.address)
-                assert.equal(balanceOfContract.toString(), prizeAmount.toString())
-            })
-
             it("Should emit a prize event created event", async function () {
-                await testToken.approve(prizeEventContract.address, totalSupply)
-
                 expect(
                     await prizeEventContract.setupEvent(
                         prizeAmount,
                         referenceBlock,
-                        testToken.address,
                         winnersDistribution,
                         voters,
                         participants
                     )
-                ).to.emit(`PrizeEventCreated(${0}, ${prizeAmount}, ${referenceBlock})`)
+                ).to.emit(
+                    prizeEventContract,
+                    `PrizeEventCreated(${0}, ${prizeAmount}, ${referenceBlock})`
+                )
             })
         })
     })
 
     describe("Vote", function () {
+        it("should allow users to purchase voting tokens", async function () {
+            const purchaseTokensTx = await prizeEventContract.connect(addr1).purchaseVotingToken({
+                value: amountToBeSent,
+            })
+            await purchaseTokensTx.wait()
+
+            const balance = await votingToken.balanceOf(addr1.address)
+
+            expect(balance).to.equal(Number(amountToBeSent) / Number(votingTokenPrice))
+        })
+
+        it("Should successfully vote", async function () {
+            const purchaseTokensTx = await prizeEventContract.connect(addr1).purchaseVotingToken({
+                value: amountToBeSent,
+            })
+            await purchaseTokensTx.wait()
+
+            await prizeEventContract.setupEvent(
+                prizeAmount,
+                referenceBlock,
+                winnersDistribution,
+                voters,
+                participants
+            )
+
+            const balance = await votingToken.balanceOf(addr1.address)
+
+            // Connect with registered voter and vote for participant1
+            await prizeEventContract.connect(addr1).vote(0, participants[0], balance)
+
+            expect(
+                await (
+                    await prizeEventContract.getVotesForParticipantInEvent(0, participants[0])
+                ).toString()
+            ).to.equal(balance.toString())
+        })
+
+        it("Should burn voter voting tokens as votes can only be used once", async function () {
+            const purchaseTokensTx = await prizeEventContract.connect(addr1).purchaseVotingToken({
+                value: amountToBeSent,
+            })
+            await purchaseTokensTx.wait()
+
+            await prizeEventContract.setupEvent(
+                prizeAmount,
+                referenceBlock,
+                winnersDistribution,
+                voters,
+                participants
+            )
+
+            const balance = await votingToken.balanceOf(addr1.address)
+
+            await prizeEventContract.connect(addr1).vote(0, participants[0], balance)
+
+            expect(await votingToken.balanceOf(addr1.address)).to.equal(0)
+        })
+
         it("Should revert with not a valid event", async function () {
             const { voter1Addr, participant1Addr } = await getNamedAccounts()
             const voter1 = await ethers.getSigner(voter1Addr)
@@ -130,109 +158,42 @@ describe("PrizeEventHandler", function () {
             ).to.be.revertedWithCustomError(prizeEventContract, `PrizeEventHandler__NotAValidEvent`)
         })
 
-        it("Should revert with not a valid voter", async function () {
-            const { voter1Addr, nonVoterAddr, participant1Addr } = await getNamedAccounts()
-            const nonVoter = await ethers.getSigner(nonVoterAddr)
-            voters.push(voter1Addr)
+        // it("Should revert with insufficient allowance", async function () {
+        //     const { voter1Addr, participant1Addr } = await getNamedAccounts()
+        //     const voter = await ethers.getSigner(voter1Addr)
+        //     voters.push(voter1Addr)
 
-            await testToken.approve(prizeEventContract.address, totalSupply)
-            await prizeEventContract.setupEvent(
-                prizeAmount,
-                referenceBlock,
-                testToken.address,
-                winnersDistribution,
-                voters,
-                participants
-            )
+        //     await prizeEventContract.setupEvent(
+        //         prizeAmount,
+        //         referenceBlock,
+        //         winnersDistribution,
+        //         voters,
+        //         participants
+        //     )
 
-            // Connect with non-registered voter and vote for participant1
-            await expect(
-                prizeEventContract.connect(nonVoter).vote(0, participant1Addr, 20)
-            ).to.be.revertedWithCustomError(
-                prizeEventContract,
-                `PrizeEventHandler__VoterNotAllowed`
-            )
-        })
-
-        it("Should revert with insufficient allowance", async function () {
-            const { voter1Addr, participant1Addr } = await getNamedAccounts()
-            const voter = await ethers.getSigner(voter1Addr)
-            voters.push(voter1Addr)
-
-            await testToken.approve(prizeEventContract.address, totalSupply)
-            await prizeEventContract.setupEvent(
-                prizeAmount,
-                referenceBlock,
-                testToken.address,
-                winnersDistribution,
-                voters,
-                participants
-            )
-
-            // Connect with registered voter and vote for participant1
-            await expect(
-                prizeEventContract.connect(voter).vote(0, participant1Addr, 20)
-            ).to.be.revertedWith(`ERC20: insufficient allowance`)
-        })
-
-        it("Should successfully vote", async function () {
-            const { voter1Addr, participant1Addr } = await getNamedAccounts()
-            const voter1 = await ethers.getSigner(voter1Addr)
-            voters.push(voter1Addr)
-
-            await testToken.approve(prizeEventContract.address, totalSupply)
-            await prizeEventContract.setupEvent(
-                prizeAmount,
-                referenceBlock,
-                testToken.address,
-                winnersDistribution,
-                voters,
-                participants
-            )
-
-            // mint some vote tokens:
-            const voteAmount = ethers.utils.parseEther("20")
-            await voteToken.grantRole(minterRole, voter1Addr)
-            await voteToken.connect(voter1).mint(voter1Addr, voteAmount)
-            await voteToken.connect(voter1).approve(prizeEventContract.address, voteAmount)
-            // Connect with registered voter and vote for participant1
-            await prizeEventContract.connect(voter1).vote(0, participant1Addr, voteAmount)
-
-            // Validate vote token balance has been transfered to contract & participant1 votes are registered
-            assert.equal((await voteToken.balanceOf(voter1Addr)).toString(), "0")
-            assert.equal(
-                (await voteToken.balanceOf(prizeEventContract.address)).toString(),
-                voteAmount.toString()
-            )
-            assert.equal(
-                await (
-                    await prizeEventContract.getVotesForParticipantInEvent(0, participant1Addr)
-                ).toString(),
-                voteAmount.toString()
-            )
-        })
+        //     // Connect with registered voter and vote for participant1
+        //     await expect(
+        //         prizeEventContract.connect(voter).vote(0, participant1Addr, 20)
+        //     ).to.be.revertedWith(`ERC20: insufficient allowance`)
+        // })
     })
     describe("Close Event", function () {
-        it("Should revert with insufficient allowance", async function () {
-            const { voter1Addr, participant1Addr } = await getNamedAccounts()
-            const voter = await ethers.getSigner(voter1Addr)
-            voters.push(voter1Addr)
-
-            await testToken.approve(prizeEventContract.address, totalSupply)
-            await prizeEventContract.setupEvent(
-                prizeAmount,
-                referenceBlock,
-                testToken.address,
-                winnersDistribution,
-                voters,
-                participants
-            )
-
-            // Connect with registered voter and vote for participant1
-            await expect(
-                prizeEventContract.connect(voter).vote(0, participant1Addr, 20)
-            ).to.be.revertedWith(`ERC20: insufficient allowance`)
-        })
+        // it("Should revert with insufficient allowance", async function () {
+        //     const { voter1Addr, participant1Addr } = await getNamedAccounts()
+        //     const voter = await ethers.getSigner(voter1Addr)
+        //     voters.push(voter1Addr)
+        //     await prizeEventContract.setupEvent(
+        //         prizeAmount,
+        //         referenceBlock,
+        //         winnersDistribution,
+        //         voters,
+        //         participants
+        //     )
+        //     // Connect with registered voter and vote for participant1
+        //     await expect(
+        //         prizeEventContract.connect(voter).vote(0, participant1Addr, 20)
+        //     ).to.be.revertedWith(`ERC20: insufficient allowance`)
+        // })
     })
     // TODO: Do this on UPDATE methods:
     // it("Should revert with only owner of event", async function () {
@@ -240,11 +201,11 @@ describe("PrizeEventHandler", function () {
     //     const nonVoter = await ethers.getSigner(nonVoterAddr)
     //     voters.push(voter1Addr)
 
-    //     await testToken.approve(prizeEventContract.address, totalSupply)
+    //     await votingToken.approve(prizeEventContract.address, totalSupply)
     //     await prizeEventContract.setupEvent(
     //         prizeAmount,
     //         referenceBlock,
-    //         testToken.address,
+    //         votingToken.address,
     //         winnersDistribution,
     //         voters,
     //         participants

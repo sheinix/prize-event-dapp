@@ -6,19 +6,9 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-// NOTE: We could be using directly VotingToken but there;s a weird solidity warning bug (https://github.com/ethereum/solidity/issues/11522)
-// import "./VotingToken.sol";
+import "./VotingToken.sol";
+
 // TODO: Use referenceBlock parameter in voting for security
-
-interface ITokenizedVotes {
-    function getPastVotes(address, uint256) external view returns (uint256);
-
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) external returns (bool);
-}
 
 error PrizeEventHandler__TooManyParticipantsAtOnce();
 error PrizeEventHandler__ApprovalFailed(address token, uint256 amount);
@@ -45,7 +35,6 @@ contract PrizeEventHandler is AccessControl {
         address owner;
         uint256 prizeAmount;
         uint256 referenceBlock;
-        IERC20 prizeToken;
         // @notice Array of numbers that reprsesents the distribution of price ([50%, 30%, 20%] or [100%] or [40%, 30%, 20%, 10%] etc.)
         uint256[] winnersDistribution;
         address[] voters;
@@ -76,13 +65,15 @@ contract PrizeEventHandler is AccessControl {
     // participant Address -> map of TokenPrize to Balance in that token - used to claim prizes for winners.
     mapping(address => mapping(IERC20 => uint256)) public s_participantBalances;
 
-    ITokenizedVotes public s_votingToken;
+    uint256 tokenPriceInWei = 0.01 ether;
+
+    VotingToken public s_votingToken;
 
     Counters.Counter private s_eventIdCounter;
 
     constructor(address _tokenVoteContractAddress) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        s_votingToken = ITokenizedVotes(_tokenVoteContractAddress);
+        s_votingToken = VotingToken(_tokenVoteContractAddress);
     }
 
     modifier validParticipants(address[] memory participants) {
@@ -145,38 +136,17 @@ contract PrizeEventHandler is AccessControl {
     function setupEvent(
         uint256 _prizeAmount,
         uint256 _referenceBlock,
-        address _prizeToken,
         uint256[] memory _winnersDistribution,
         address[] memory _voters,
         address[] memory _participants
     ) public validParticipants(_participants) {
-        // (Needs approval first)
-        // Transfer the Token:
-        IERC20 tokenPrize = IERC20(_prizeToken);
-
-        if (!tokenPrize.transferFrom(msg.sender, address(this), _prizeAmount)) {
-            revert PrizeEventHandler__RegistrationFailed(_prizeToken, _prizeAmount);
-        }
-
         // If succeed create the storage:
-        registerEvent(
-            _prizeAmount,
-            _referenceBlock,
-            _prizeToken,
-            _winnersDistribution,
-            _voters,
-            _participants
-        );
-
-        //s_votingToken.grantRole(MINTER_ROLE, msg.sender);
-
-        // TODO: Assign Voting Token Minter Role to the event creator.
+        registerEvent(_prizeAmount, _referenceBlock, _winnersDistribution, _voters, _participants);
     }
 
     function registerEvent(
         uint256 _prizeAmount,
         uint256 _referenceBlock,
-        address _prizeToken,
         uint256[] memory _winnersDistribution,
         address[] memory _voters,
         address[] memory _participants
@@ -192,7 +162,6 @@ contract PrizeEventHandler is AccessControl {
             msg.sender,
             _prizeAmount,
             _referenceBlock,
-            IERC20(_prizeToken),
             _winnersDistribution,
             _voters,
             _participants,
@@ -211,16 +180,10 @@ contract PrizeEventHandler is AccessControl {
         uint256 eventId,
         address participant,
         uint256 amountOfVotes
-    )
-        public
-        validEvent(eventId)
-        validVoter(eventId, msg.sender)
-        onlyOpenEvent(eventId)
-        validParticipant(participant, eventId)
-    {
-        if (!s_votingToken.transferFrom(msg.sender, address(this), amountOfVotes)) {
-            revert PrizeEventHandler__VotingFailed(eventId, participant, amountOfVotes);
-        }
+    ) public validEvent(eventId) onlyOpenEvent(eventId) validParticipant(participant, eventId) {
+        require(s_votingToken.balanceOf(msg.sender) >= amountOfVotes, "Insufficient Vote Power");
+
+        s_votingToken.burn(msg.sender, amountOfVotes);
 
         s_participantVotes[participant][eventId] += amountOfVotes;
     }
@@ -238,6 +201,15 @@ contract PrizeEventHandler is AccessControl {
 
         // Is this really necessary? Doesn't solidity initializes it in 0 anyway?
         s_participantVotes[msg.sender][eventId] = 0;
+    }
+
+    function purchaseVotingToken() public payable {
+        require(msg.value >= tokenPriceInWei, "Not enough money sent");
+        uint256 tokensToTransfer = msg.value / tokenPriceInWei;
+        uint256 remainder = msg.value - tokensToTransfer * tokenPriceInWei;
+
+        s_votingToken.mint(msg.sender, tokensToTransfer);
+        payable(msg.sender).transfer(remainder);
     }
 
     function closeEvent(uint256 eventId)
@@ -260,12 +232,7 @@ contract PrizeEventHandler is AccessControl {
 
         // TODO: what happens when we have ties? --> Out of Scope
 
-        distributePrize(
-            winners,
-            prizeEvent.winnersDistribution,
-            prizeAmount,
-            prizeEvent.prizeToken
-        );
+        distributePrize(winners, prizeEvent.winnersDistribution, prizeAmount);
 
         emit PrizeEventClosed(eventId, prizeAmount);
     }
@@ -273,18 +240,16 @@ contract PrizeEventHandler is AccessControl {
     function distributePrize(
         address[] memory winners,
         uint256[] memory winnersDistribution,
-        uint256 prizeAmount,
-        IERC20 tokenPrize
+        uint256 prizeAmount
     ) private {
         require(
             winnersDistribution.length == winners.length,
             "Winners Array & Distribution Array must have the same length"
         );
 
-        for (uint256 i = 0; i < winners.length; i++) {
-            uint256 prizeDist = prizeAmount.div(100).mul(winnersDistribution[i]);
-            s_participantBalances[winners[i]][tokenPrize] = prizeDist;
-        }
+        // for (uint256 i = 0; i < winners.length; i++) {
+        //     uint256 prizeDist = prizeAmount.div(100).mul(winnersDistribution[i]);
+        // }
     }
 
     /**
@@ -356,10 +321,6 @@ contract PrizeEventHandler is AccessControl {
         returns (uint256)
     {
         return s_participantVotes[participant][eventId];
-    }
-
-    function getPrizeTokenAddressFor(uint256 eventId) public view returns (IERC20) {
-        return s_prizeEvents[eventId].prizeToken;
     }
 
     function addressExists(address addressaToFind, address[] memory addressesArray)
