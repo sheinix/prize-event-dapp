@@ -180,16 +180,10 @@ contract PrizeEventHandler is AccessControl {
         uint256 eventId,
         address participant,
         uint256 amountOfVotes
-    )
-        public
-        validEvent(eventId)
-        validVoter(eventId, msg.sender)
-        onlyOpenEvent(eventId)
-        validParticipant(participant, eventId)
-    {
-        if (!s_votingToken.transferFrom(msg.sender, address(this), amountOfVotes)) {
-            revert PrizeEventHandler__VotingFailed(eventId, participant, amountOfVotes);
-        }
+    ) public validEvent(eventId) onlyOpenEvent(eventId) validParticipant(participant, eventId) {
+        require(s_votingToken.balanceOf(msg.sender) >= amountOfVotes, "Insufficient Vote Power");
+
+        s_votingToken.burn(msg.sender, amountOfVotes);
 
         s_participantVotes[participant][eventId] += amountOfVotes;
     }
