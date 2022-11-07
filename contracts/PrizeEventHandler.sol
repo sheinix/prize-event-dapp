@@ -65,7 +65,7 @@ contract PrizeEventHandler is AccessControl {
     // participant Address -> map of TokenPrize to Balance in that token - used to claim prizes for winners.
     mapping(address => mapping(IERC20 => uint256)) public s_participantBalances;
 
-    uint256 tokenPriceInWei = 0.1 ether;
+    uint256 tokenPriceInWei = 0.01 ether;
 
     VotingToken public s_votingToken;
 
@@ -207,6 +207,15 @@ contract PrizeEventHandler is AccessControl {
 
         // Is this really necessary? Doesn't solidity initializes it in 0 anyway?
         s_participantVotes[msg.sender][eventId] = 0;
+    }
+
+    function purchaseVotingToken() public payable {
+        require(msg.value >= tokenPriceInWei, "Not enough money sent");
+        uint256 tokensToTransfer = msg.value / tokenPriceInWei;
+        uint256 remainder = msg.value - tokensToTransfer * tokenPriceInWei;
+
+        s_votingToken.mint(msg.sender, tokensToTransfer);
+        payable(msg.sender).transfer(remainder);
     }
 
     function closeEvent(uint256 eventId)

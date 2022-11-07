@@ -6,6 +6,7 @@ import deployContracts from "../scripts/deploy"
 import { BigNumber, Signer } from "ethers"
 import { PrizeEventHandler, VotingToken } from "../typechain-types"
 import { hrtime } from "process"
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 
 describe("PrizeEventHandler", function () {
     let prizeAmount: BigNumber
@@ -13,13 +14,16 @@ describe("PrizeEventHandler", function () {
     let winnersDistribution: bigint[] = []
     var voters: string[]
     var participants: string[]
-    let totalSupply: string
     let prizeEventContract: PrizeEventHandler
     let votingToken: VotingToken
     let minterRole: string
+    let owner: SignerWithAddress, addr1: SignerWithAddress
+
+    const amountToBeSent = ethers.utils.parseEther("1")
+    const votingTokenPrice = ethers.utils.parseEther("0.01")
 
     beforeEach(async () => {
-        totalSupply = ethers.utils.parseEther("100000").toString() //(10 ** 9).toString()
+        ;[owner, addr1] = await ethers.getSigners()
 
         // Deploy Contracts:
         const VotingToken = await ethers.getContractFactory("VotingToken")
@@ -38,7 +42,9 @@ describe("PrizeEventHandler", function () {
         winnersDistribution.push(BigInt(20))
         voters = []
         participants = []
-        minterRole = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"))
+        minterRole = await votingToken.MINTER_ROLE()
+
+        await votingToken.grantRole(minterRole, prizeEventContract.address)
     })
 
     describe("Event Registration", function () {
@@ -63,8 +69,6 @@ describe("PrizeEventHandler", function () {
             })
 
             it("Should emit a prize event created event", async function () {
-                await votingToken.approve(prizeEventContract.address, totalSupply)
-
                 expect(
                     await prizeEventContract.setupEvent(
                         prizeAmount,
@@ -82,6 +86,17 @@ describe("PrizeEventHandler", function () {
     })
 
     describe("Vote", function () {
+        it("should allow users to purchase voting tokens", async function () {
+            const purchaseTokensTx = await prizeEventContract.connect(addr1).purchaseVotingToken({
+                value: amountToBeSent,
+            })
+            await purchaseTokensTx.wait()
+
+            const balance = await votingToken.balanceOf(addr1.address)
+
+            expect(balance).to.equal(Number(amountToBeSent) / Number(votingTokenPrice))
+        })
+
         it("Should revert with not a valid event", async function () {
             const { voter1Addr, participant1Addr } = await getNamedAccounts()
             const voter1 = await ethers.getSigner(voter1Addr)
@@ -98,7 +113,6 @@ describe("PrizeEventHandler", function () {
             const nonVoter = await ethers.getSigner(nonVoterAddr)
             voters.push(voter1Addr)
 
-            await votingToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
                 referenceBlock,
@@ -121,7 +135,6 @@ describe("PrizeEventHandler", function () {
             const voter = await ethers.getSigner(voter1Addr)
             voters.push(voter1Addr)
 
-            await votingToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
                 referenceBlock,
@@ -141,7 +154,6 @@ describe("PrizeEventHandler", function () {
             const voter1 = await ethers.getSigner(voter1Addr)
             voters.push(voter1Addr)
 
-            await votingToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
                 referenceBlock,
@@ -178,7 +190,6 @@ describe("PrizeEventHandler", function () {
             const voter = await ethers.getSigner(voter1Addr)
             voters.push(voter1Addr)
 
-            await votingToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
                 referenceBlock,
