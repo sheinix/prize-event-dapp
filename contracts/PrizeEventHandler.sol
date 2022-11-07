@@ -7,7 +7,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 // NOTE: We could be using directly VotingToken but there;s a weird solidity warning bug (https://github.com/ethereum/solidity/issues/11522)
-// import "./VotingToken.sol";
+import "./VotingToken.sol";
+
 // TODO: Use referenceBlock parameter in voting for security
 
 interface ITokenizedVotes {
@@ -76,13 +77,13 @@ contract PrizeEventHandler is AccessControl {
     // participant Address -> map of TokenPrize to Balance in that token - used to claim prizes for winners.
     mapping(address => mapping(IERC20 => uint256)) public s_participantBalances;
 
-    ITokenizedVotes public s_votingToken;
+    VotingToken public s_votingToken;
 
     Counters.Counter private s_eventIdCounter;
 
     constructor(address _tokenVoteContractAddress) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        s_votingToken = ITokenizedVotes(_tokenVoteContractAddress);
+        s_votingToken = VotingToken(_tokenVoteContractAddress);
     }
 
     modifier validParticipants(address[] memory participants) {
