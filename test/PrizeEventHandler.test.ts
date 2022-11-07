@@ -113,7 +113,10 @@ describe("PrizeEventHandler", function () {
                         voters,
                         participants
                     )
-                ).to.emit(`PrizeEventCreated(${0}, ${prizeAmount}, ${referenceBlock})`)
+                ).to.emit(
+                    prizeEventContract,
+                    `PrizeEventCreated(${0}, ${prizeAmount}, ${referenceBlock})`
+                )
             })
         })
     })
