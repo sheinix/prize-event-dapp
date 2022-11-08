@@ -5,11 +5,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-
-// NOTE: We could be using directly VotingToken but there;s a weird solidity warning bug (https://github.com/ethereum/solidity/issues/11522)
 import "./VotingToken.sol";
-
-// TODO: Use referenceBlock parameter in voting for security
 
 interface ITokenizedVotes {
     function getPastVotes(address, uint256) external view returns (uint256);
@@ -41,6 +37,7 @@ contract PrizeEventHandler is AccessControl {
         OPEN,
         CLOSED
     }
+
     struct PrizeEvent {
         uint256 eventId;
         address owner;
@@ -63,7 +60,7 @@ contract PrizeEventHandler is AccessControl {
 
     event PrizeEventClosed(uint256 indexed eventId, uint256 indexed prizeAmount);
 
-    //@notice the array of prize events created (do we actually need it?)
+    //@notice the array of prize events created
     PrizeEvent[] public s_eventsArray;
 
     // @notice the eventId -> PrizeEvent mapping
@@ -77,6 +74,10 @@ contract PrizeEventHandler is AccessControl {
     // participant Address -> map of TokenPrize to Balance in that token - used to claim prizes for winners.
     mapping(address => mapping(IERC20 => uint256)) public s_participantBalances;
 
+    // @notice price of the voting token
+    uint256 votingTokenPriceInWei = 0.01 ether;
+
+    // @notice the token used for voting:
     VotingToken public s_votingToken;
 
     Counters.Counter private s_eventIdCounter;
@@ -89,6 +90,14 @@ contract PrizeEventHandler is AccessControl {
     modifier validParticipants(address[] memory participants) {
         if (participants.length > 10) {
             revert PrizeEventHandler__TooManyParticipantsAtOnce();
+        }
+        _;
+    }
+
+    modifier validParticipant(address participant, uint256 eventId) {
+        PrizeEvent memory prizeEvent = s_prizeEvents[eventId];
+        if (!addressExists(participant, prizeEvent.participants)) {
+            revert PrizeEventHandler__NotValidParticipantForEvent(msg.sender, eventId);
         }
         _;
     }
@@ -124,13 +133,6 @@ contract PrizeEventHandler is AccessControl {
         _;
     }
 
-    modifier validParticipant(address participant, uint256 eventId) {
-        PrizeEvent memory prizeEvent = s_prizeEvents[eventId];
-        if (!addressExists(participant, prizeEvent.participants)) {
-            revert PrizeEventHandler__NotValidParticipantForEvent(msg.sender, eventId);
-        }
-        _;
-    }
     modifier validWinnerDistribution(uint256[] memory array) {
         // TODO: Important, because if it's not correct we cannot properly calculate the winners!
         _;
@@ -143,6 +145,9 @@ contract PrizeEventHandler is AccessControl {
         _;
     }
 
+    /**
+     * @dev Setups the event on memory and transfers tokens to contract.
+     */
     function setupEvent(
         uint256 _prizeAmount,
         uint256 _referenceBlock,
@@ -174,6 +179,9 @@ contract PrizeEventHandler is AccessControl {
         // TODO: Assign Voting Token Minter Role to the event creator.
     }
 
+    /**
+     * @dev storage event function
+     */
     function registerEvent(
         uint256 _prizeAmount,
         uint256 _referenceBlock,
@@ -288,6 +296,15 @@ contract PrizeEventHandler is AccessControl {
         }
     }
 
+    function purchaseVotingToken() public payable {
+        require(msg.value >= votingTokenPriceInWei, "Not enough money sent");
+        uint256 tokensToTransfer = msg.value.div(votingTokenPriceInWei);
+        uint256 remainder = msg.value.sub(tokensToTransfer.mul(votingTokenPriceInWei));
+
+        s_votingToken.mint(msg.sender, tokensToTransfer);
+        payable(msg.sender).transfer(remainder);
+    }
+
     /**
      * @notice This methods sorts an array of addresses
      * @dev This sorting is not gas efficent and should be changed to quickSort or something more gas efficent for prod.
@@ -304,7 +321,7 @@ contract PrizeEventHandler is AccessControl {
                 uint256 voteParticipant1 = getVotesForParticipantInEvent(eventId, participants[i]);
                 uint256 voteParticipant2 = getVotesForParticipantInEvent(eventId, participants[j]);
 
-                if (voteParticipant1 > voteParticipant2) {
+                if (voteParticipant1 < voteParticipant2) {
                     address tempAddr = participants[i];
                     participants[i] = participants[j];
                     participants[j] = tempAddr;
@@ -361,6 +378,14 @@ contract PrizeEventHandler is AccessControl {
 
     function getPrizeTokenAddressFor(uint256 eventId) public view returns (IERC20) {
         return s_prizeEvents[eventId].prizeToken;
+    }
+
+    function getParticipantBalanceIn(address participantAddr, address tokenPrize)
+        public
+        view
+        returns (uint256)
+    {
+        return s_participantBalances[participantAddr][IERC20(tokenPrize)];
     }
 
     function addressExists(address addressaToFind, address[] memory addressesArray)
