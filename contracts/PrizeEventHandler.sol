@@ -360,8 +360,7 @@ contract PrizeEventHandler is AccessControl {
         IERC20 prizeToken = IERC20(tokenAddress);
         uint256 winnerBalance = s_participantBalances[msg.sender][prizeToken];
         s_participantBalances[msg.sender][prizeToken] = 0;
-
-        prizeToken.transferFrom(address(this), msg.sender, winnerBalance);
+        prizeToken.transfer(msg.sender, winnerBalance);
     }
 
     function getPrizeEvent(uint256 eventId) public view returns (PrizeEvent memory) {

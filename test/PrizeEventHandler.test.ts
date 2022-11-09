@@ -371,11 +371,6 @@ describe("PrizeEventHandler", function () {
             // Close the Event:
             await prizeEventContract.closeEvent(0)
 
-            // Approve contract to claim:
-            // await testToken.approve(prizeEventContract.address, totalSupply)
-            // await testToken.connect(participant2).approve(prizeEventContract.address, totalSupply)
-            // await testToken.connect(participant4).approve(prizeEventContract.address, totalSupply)
-
             const balanceOfContract = await testToken.balanceOf(prizeEventContract.address)
             const balanceInTokenForWinner = await prizeEventContract.getParticipantBalanceIn(
                 participant1Addr,
@@ -396,35 +391,28 @@ describe("PrizeEventHandler", function () {
                 prizeEventContract.address
             )
 
-            console.log(`Total supply: ${totalSupply}`)
-            console.log(`Allowance For Contract: ${allowanceForContract}`)
-            console.log(`Balance of Contract: ${balanceOfContract}`)
-            console.log(`Balance of Winner: ${balanceInTokenForWinner}`)
-            console.log(`Balance of 2nd: ${balanceInTokenFor2nd}`)
-            console.log(`Balance of 3rd: ${balanceInTokenFor3rd}`)
-
             const totalPrize = balanceInTokenForWinner
                 .add(balanceInTokenFor2nd)
                 .add(balanceInTokenFor3rd)
             assert.equal(totalPrize.toString(), prizeAmount.toString())
             assert.equal(totalPrize.toString(), balanceOfContract.toString())
 
-            // TODO: Not working - failing with ERC20 insufficient allowance 🤷🏻‍♂️
             // Claim Prizes:
             await prizeEventContract.connect(participant1).claimPrizeIn(testToken.address)
-            // await prizeEventContract.connect(participant2).claimPrizeIn(testToken.address)
-            // await prizeEventContract.connect(participant4).claimPrizeIn(testToken.address)
+            await prizeEventContract.connect(participant2).claimPrizeIn(testToken.address)
+            await prizeEventContract.connect(participant4).claimPrizeIn(testToken.address)
 
-            // const participant1Balance = await testToken.balanceOf(participant1Addr)
-            // const participant2Balance = await testToken.balanceOf(participant2Addr)
-            // const participant4Balance = await testToken.balanceOf(participant4Addr)
-            // const addressBalance = await testToken.balanceOf(prizeEventContract.address)
+            // Get balance in prize token for the winners:
+            const participant1Balance = await testToken.balanceOf(participant1Addr)
+            const participant2Balance = await testToken.balanceOf(participant2Addr)
+            const participant4Balance = await testToken.balanceOf(participant4Addr)
+            const addressBalance = await testToken.balanceOf(prizeEventContract.address)
 
-            // // Assert
-            // assert.equal(participant1Balance.toString(), prizeAmount.div(2).toString()) // the 1st place was 50% of prize
-            // assert.equal(participant2Balance.toString(), prizeAmount.div(100).mul(30).toString()) // the 1st place was 50% of prize
-            // assert.equal(participant4Balance.toString(), prizeAmount.div(100).mul(20).toString()) // the 1st place was 50% of prize
-            // assert.equal(addressBalance.toString(), "0")
+            // Assert they have the correct amount:
+            assert.equal(participant1Balance.toString(), prizeAmount.div(2).toString()) // the 1st place was 50% of prize
+            assert.equal(participant2Balance.toString(), prizeAmount.div(100).mul(30).toString()) // the 1st place was 50% of prize
+            assert.equal(participant4Balance.toString(), prizeAmount.div(100).mul(20).toString()) // the 1st place was 50% of prize
+            assert.equal(addressBalance.toString(), "0")
         })
     })
 })
