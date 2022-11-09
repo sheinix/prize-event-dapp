@@ -73,8 +73,11 @@ contract PrizeEventHandler is AccessControl {
 
     Counters.Counter private s_eventIdCounter;
 
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
     constructor(address _tokenVoteContractAddress) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
         s_votingToken = VotingToken(_tokenVoteContractAddress);
     }
 
@@ -165,6 +168,7 @@ contract PrizeEventHandler is AccessControl {
         // Transfer the Token:
         IERC20 tokenPrize = IERC20(_prizeToken);
 
+        require(tokenPrize.balanceOf(msg.sender) >= _prizeAmount, "Not enough Tokens to Transfer");
         if (!tokenPrize.transferFrom(msg.sender, address(this), _prizeAmount)) {
             revert PrizeEventHandler__RegistrationFailed(_prizeToken, _prizeAmount);
         }
@@ -190,12 +194,8 @@ contract PrizeEventHandler is AccessControl {
         uint256[] memory _winnersDistribution,
         address[] memory _voters,
         address[] memory _participants
-    ) internal validParticipants(_participants) {
+    ) private {
         uint256 newEventId = s_eventIdCounter.current();
-
-        for (uint256 i = 0; i < _participants.length; i++) {
-            s_participantVotes[_participants[i]][newEventId] = 0;
-        }
 
         PrizeEvent memory newPrizeEvent = PrizeEvent(
             s_eventIdCounter.current(),
@@ -245,9 +245,6 @@ contract PrizeEventHandler is AccessControl {
             revert PrizeEventHandler__ParticipantAlreadyRegistered(eventId, msg.sender);
         }
         s_prizeEvents[eventId].participants.push(msg.sender);
-
-        // Is this really necessary? Doesn't solidity initializes it in 0 anyway?
-        s_participantVotes[msg.sender][eventId] = 0;
     }
 
     function closeEvent(uint256 eventId)
