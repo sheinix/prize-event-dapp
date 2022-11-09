@@ -1,5 +1,6 @@
 import { ethers } from "hardhat"
 import { VotingToken } from "../typechain-types"
+import { verify } from "./verify"
 
 async function deployContracts() {
     console.log("Deploying Voting Token First...")
@@ -20,6 +21,14 @@ async function deployContracts() {
     await prizeEventContract.deployed()
 
     console.log(`PrizeEventHandler deployed to address: ${prizeEventContract.address}`)
+
+    if (ethers.provider.network.chainId == 5) {
+        console.log(`Verifying Vote Token....`)
+        await verify(voteToken.address, [])
+
+        console.log(`Verifying PrizeEventHandler....`)
+        await verify(prizeEventContract.address, [voteToken.address])
+    }
 
     return { voteToken, prizeEventContract }
 }
