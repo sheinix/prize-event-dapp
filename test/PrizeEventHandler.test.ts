@@ -1,11 +1,7 @@
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers"
-import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs"
-import { expect, assert, Assertion } from "chai"
+import { expect, assert } from "chai"
 import { ethers, getNamedAccounts } from "hardhat"
-import deployContracts from "../scripts/deploy"
-import { BigNumber, Signer } from "ethers"
+import { BigNumber } from "ethers"
 import { PrizeEventHandler, VotingToken, TestToken } from "../typechain-types"
-import { hrtime } from "process"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 
 describe("PrizeEventHandler", function () {
@@ -20,7 +16,6 @@ describe("PrizeEventHandler", function () {
     let testToken: TestToken
     let minterRole: string
     let owner: SignerWithAddress, addr1: SignerWithAddress
-
     const amountToBeSent = ethers.utils.parseEther("1")
     const votingTokenPrice = ethers.utils.parseEther("0.01")
 
@@ -39,9 +34,7 @@ describe("PrizeEventHandler", function () {
         // Prepare values:
         prizeAmount = ethers.utils.parseEther("1")
         referenceBlock = BigNumber.from(2000000)
-        winnersDistribution.push(BigInt(50))
-        winnersDistribution.push(BigInt(30))
-        winnersDistribution.push(BigInt(20))
+        winnersDistribution = [BigInt(50), BigInt(30), BigInt(20)]
         voters = []
         participants = []
         minterRole = await voteToken.MINTER_ROLE()
@@ -367,7 +360,7 @@ describe("PrizeEventHandler", function () {
             const participant1 = await ethers.getSigner(participant1Addr)
             const participant2 = await ethers.getSigner(participant2Addr)
             const participant4 = await ethers.getSigner(participant4Addr)
-            const totalSupply = await testToken.totalSupply()
+
             // Close the Event:
             await prizeEventContract.closeEvent(0)
 
@@ -384,11 +377,6 @@ describe("PrizeEventHandler", function () {
             const balanceInTokenFor3rd = await prizeEventContract.getParticipantBalanceIn(
                 participant4Addr,
                 testToken.address
-            )
-
-            const allowanceForContract = await testToken.allowance(
-                deployer,
-                prizeEventContract.address
             )
 
             const totalPrize = balanceInTokenForWinner

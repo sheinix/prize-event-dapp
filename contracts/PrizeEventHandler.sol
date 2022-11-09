@@ -7,16 +7,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./VotingToken.sol";
 
-interface ITokenizedVotes {
-    function getPastVotes(address, uint256) external view returns (uint256);
-
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) external returns (bool);
-}
-
 error PrizeEventHandler__TooManyParticipantsAtOnce();
 error PrizeEventHandler__ApprovalFailed(address token, uint256 amount);
 error PrizeEventHandler__RegistrationFailed(address token, uint256 amount);
@@ -385,6 +375,10 @@ contract PrizeEventHandler is AccessControl {
         returns (uint256)
     {
         return s_participantBalances[participantAddr][IERC20(tokenPrize)];
+    }
+
+    function getParticipantsForEvent(uint256 eventId) public view returns (address[] memory) {
+        return s_prizeEvents[eventId].participants;
     }
 
     function addressExists(address addressaToFind, address[] memory addressesArray)
