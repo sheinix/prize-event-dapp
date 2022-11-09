@@ -77,6 +77,24 @@ describe("PrizeEventHandler", function () {
                 )
             })
 
+            it("Should Revert with invalid distribution array - not 100%", async function () {
+                await testToken.approve(prizeEventContract.address, totalSupply)
+                const invalidWinnersDist = [BigInt(50), BigInt(70)]
+                await expect(
+                    prizeEventContract.setupEvent(
+                        prizeAmount,
+                        referenceBlock,
+                        testToken.address,
+                        invalidWinnersDist,
+                        voters,
+                        participants
+                    )
+                ).to.be.revertedWithCustomError(
+                    prizeEventContract,
+                    `PrizeEventHandler__InvalidWinnerDistribution`
+                )
+            })
+
             it("Should deposit token and Register Event", async function () {
                 await testToken.approve(prizeEventContract.address, totalSupply)
 

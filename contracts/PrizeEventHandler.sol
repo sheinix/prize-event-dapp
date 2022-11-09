@@ -18,6 +18,7 @@ error PrizeEventHandler__EventClosed(uint256 eventId);
 error PrizeEventHandler__ParticipantAlreadyRegistered(uint256 eventId, address participant);
 error PrizeEventHandler__NotValidParticipantForEvent(address participant, uint256 eventId);
 error PrizeEventHandler__InvalidPrizeClaim(address participant, address tokenPrize);
+error PrizeEventHandler__InvalidWinnerDistribution(uint256[] winnerDistribution);
 
 contract PrizeEventHandler is AccessControl {
     using Counters for Counters.Counter;
@@ -123,8 +124,22 @@ contract PrizeEventHandler is AccessControl {
         _;
     }
 
+    /**
+     * @dev defensive code against hughe array of %. Ideally the number should be updatable by contract admin.
+     * @notice we need to make sure the distribution is correct otherwise we won;t be able to calculate prize distribution for winners.
+     */
     modifier validWinnerDistribution(uint256[] memory array) {
-        // TODO: Important, because if it's not correct we cannot properly calculate the winners!
+        if (array.length > 6) {
+            revert PrizeEventHandler__InvalidWinnerDistribution(array);
+        }
+
+        uint256 sum;
+        for (uint256 i = 0; i < array.length; i++) {
+            sum += array[i];
+        }
+        if (sum > 100) {
+            revert PrizeEventHandler__InvalidWinnerDistribution(array);
+        }
         _;
     }
 
@@ -145,7 +160,7 @@ contract PrizeEventHandler is AccessControl {
         uint256[] memory _winnersDistribution,
         address[] memory _voters,
         address[] memory _participants
-    ) public validParticipants(_participants) {
+    ) public validParticipants(_participants) validWinnerDistribution(_winnersDistribution) {
         // (Needs approval first)
         // Transfer the Token:
         IERC20 tokenPrize = IERC20(_prizeToken);
@@ -163,10 +178,6 @@ contract PrizeEventHandler is AccessControl {
             _voters,
             _participants
         );
-
-        //s_votingToken.grantRole(MINTER_ROLE, msg.sender);
-
-        // TODO: Assign Voting Token Minter Role to the event creator.
     }
 
     /**
