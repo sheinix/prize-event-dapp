@@ -327,6 +327,39 @@ describe("PrizeEventHandler", function () {
             await prizeEventContract.connect(voter3).vote(0, participant4Addr, voteAmount.div(2))
         })
 
+        it("should revert with invalid event", async () => {
+            await expect(prizeEventContract.closeEvent(1)).to.be.revertedWithCustomError(
+                prizeEventContract,
+                `PrizeEventHandler__NotAValidEvent`
+            )
+        })
+
+        it("should revert with only owner of event", async () => {
+            const { voter1Addr, participant1Addr } = await getNamedAccounts()
+            const voter1 = await ethers.getSigner(voter1Addr)
+            await expect(
+                prizeEventContract.connect(voter1).closeEvent(0)
+            ).to.be.revertedWithCustomError(
+                prizeEventContract,
+                `PrizeEventHandler__OnlyOwnerOfEventAllowed`
+            )
+        })
+
+        it("should revert with invalid event", async () => {
+            await expect(prizeEventContract.closeEvent(1)).to.be.revertedWithCustomError(
+                prizeEventContract,
+                `PrizeEventHandler__NotAValidEvent`
+            )
+        })
+
+        it("should revert with only open events ", async () => {
+            await prizeEventContract.closeEvent(0)
+            await expect(prizeEventContract.closeEvent(0)).to.be.revertedWithCustomError(
+                prizeEventContract,
+                `PrizeEventHandler__EventClosed`
+            )
+        })
+
         it("Should close the event and distribute prizes", async function () {
             const { participant1Addr, participant2Addr, participant4Addr } =
                 await getNamedAccounts()
@@ -365,7 +398,7 @@ describe("PrizeEventHandler", function () {
             // Get the event & assert:
             const prizeEvent = await prizeEventContract.getPrizeEvent(0)
             const voteAmountForWinner = ethers.utils.parseEther("50")
-            assert.equal(prizeEvent[8].toString(), "0")
+            assert.equal(prizeEvent[8].toString(), "1")
             assert.equal(participant1Votes.toString(), voteAmountForWinner.toString())
             assert.equal(balanceInTokenForWinner.toString(), prizeAmount.div(2).toString()) // the 1st place was 50% of prize
             assert.equal(balanceInTokenFor2nd.toString(), prizeAmount.div(100).mul(30).toString()) // the 2nd place was 30% of prize

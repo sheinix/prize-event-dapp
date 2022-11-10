@@ -77,7 +77,6 @@ contract PrizeEventHandler is AccessControl {
 
     constructor(address _tokenVoteContractAddress) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
         s_votingToken = VotingToken(_tokenVoteContractAddress);
     }
 
@@ -254,7 +253,7 @@ contract PrizeEventHandler is AccessControl {
         onlyOpenEvent(eventId)
     {
         PrizeEvent memory prizeEvent = getPrizeEvent(eventId);
-        prizeEvent.status = EventStatus.CLOSED;
+        s_prizeEvents[eventId].status = EventStatus.CLOSED;
 
         uint256 prizeAmount = prizeEvent.prizeAmount;
         uint256 amountOfWinners = prizeEvent.winnersDistribution.length;
