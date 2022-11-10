@@ -104,12 +104,12 @@ contract PrizeEventHandler is AccessControl {
         _;
     }
 
-    // modifier validEvent(uint256 eventId) {
-    //     if (s_prizeEvents[eventId].owner == address(0)) {
-    //         revert PrizeEventHandler__NotAValidEvent(eventId);
-    //     }
-    //     _;
-    // }
+    modifier validEvent(uint256 eventId) {
+        if (s_prizeEvents[eventId].owner == address(0)) {
+            revert PrizeEventHandler__NotAValidEvent(eventId);
+        }
+        _;
+    }
 
     modifier onlyOpenEvent(uint256 eventId) {
         PrizeEvent memory prizeEvent = s_prizeEvents[eventId];
@@ -222,7 +222,7 @@ contract PrizeEventHandler is AccessControl {
         uint256 amountOfVotes
     )
         public
-        // validEvent(eventId)
+        validEvent(eventId)
         validVoter(eventId, msg.sender)
         onlyOpenEvent(eventId)
         validParticipant(participant, eventId)
@@ -236,7 +236,7 @@ contract PrizeEventHandler is AccessControl {
 
     function registerAsParticipant(uint256 eventId)
         public
-        // validEvent(eventId)
+        validEvent(eventId)
         onlyOpenEvent(eventId)
     {
         PrizeEvent memory prizeEvent = getPrizeEvent(eventId);
@@ -248,12 +248,12 @@ contract PrizeEventHandler is AccessControl {
 
     function closeEvent(uint256 eventId)
         public
-        // validEvent(eventId)
+        validEvent(eventId)
         onlyOwnerOf(eventId)
         onlyOpenEvent(eventId)
     {
         PrizeEvent memory prizeEvent = getPrizeEvent(eventId);
-        prizeEvent.status = EventStatus.CLOSED;
+        s_prizeEvents[eventId].status = EventStatus.CLOSED;
 
         uint256 prizeAmount = prizeEvent.prizeAmount;
         uint256 amountOfWinners = prizeEvent.winnersDistribution.length;
