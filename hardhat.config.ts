@@ -64,7 +64,7 @@ const config: HardhatUserConfig = {
         participant2Addr: 6,
         participant3Addr: 7,
         participant4Addr: 8,
-        nonVoterAddr: 9,
+        participant5Addr: 9,
     },
 }
 

@@ -336,13 +336,14 @@ contract PrizeEventHandler is AccessControl {
         pure
         returns (address[] memory)
     {
-        address[] memory winners;
+        // Initialize the fixed size memory array so we can assign:
+        address[] memory winners = new address[](amountOfWinners);
+
         if (amountOfWinners >= participants.length) {
             return participants;
         }
 
-        for (uint256 i = 0; i < amountOfWinners - 1; i++) {
-            // note cannot push() on memory - so just assign same value
+        for (uint256 i = 0; i < amountOfWinners; i++) {
             winners[i] = participants[i];
         }
 

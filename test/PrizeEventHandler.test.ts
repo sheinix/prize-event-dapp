@@ -114,7 +114,6 @@ describe("PrizeEventHandler", function () {
 
                 // Token Deposited:
                 const balanceOfContract = await testToken.balanceOf(prizeEventContract.address)
-                console.log(`balance of contract: ${balanceOfContract}`)
                 assert.equal(balanceOfContract.toString(), prizeAmount.toString())
             })
 
@@ -351,6 +350,33 @@ describe("PrizeEventHandler", function () {
                 `PrizeEventHandler__NotAValidEvent`
             )
         })
+
+        // @dev Private method testing:
+        // it("should slice participants correctly", async () => {
+        //     const { participant5Addr } = await getNamedAccounts()
+        //     participants.push(participant5Addr)
+
+        //     const slicedArray = await prizeEventContract.sliceParticipants(
+        //         participants,
+        //         BigNumber.from(winnersDistribution.length)
+        //     )
+
+        //     assert.equal(slicedArray.length, winnersDistribution.length)
+        // })
+
+        // @dev Private method testing:
+        // it("should sort participants correctly", async () => {
+        //     const { participant1Addr, participant2Addr, participant4Addr, participant5Addr } =
+        //         await getNamedAccounts()
+        //     participants.push(participant5Addr)
+
+        //     const sortedArray = await prizeEventContract.sortParticipants(participants, 0)
+
+        //     assert.equal(sortedArray[0].toString(), participant1Addr)
+        //     assert.equal(sortedArray[1].toString(), participant2Addr)
+        //     assert.equal(sortedArray[2].toString(), participant4Addr)
+        //     assert.equal(sortedArray[3].toString(), participant5Addr)
+        // })
 
         it("should revert with only open events ", async () => {
             await prizeEventContract.closeEvent(0)
