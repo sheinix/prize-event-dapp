@@ -33,7 +33,6 @@ contract PrizeEventHandler is AccessControl {
         uint256 eventId;
         address owner;
         uint256 prizeAmount;
-        uint256 referenceBlock;
         IERC20 prizeToken;
         // @notice Array of numbers that reprsesents the distribution of price ([50%, 30%, 20%] or [100%] or [40%, 30%, 20%, 10%] etc.)
         uint256[] winnersDistribution;
@@ -43,11 +42,7 @@ contract PrizeEventHandler is AccessControl {
     }
 
     // Events:
-    event PrizeEventCreated(
-        uint256 indexed eventId,
-        uint256 indexed prizeAmount,
-        uint256 indexed referenceBlock
-    );
+    event PrizeEventCreated(uint256 indexed eventId, uint256 indexed prizeAmount);
 
     event PrizeEventClosed(uint256 indexed eventId, uint256 indexed prizeAmount);
 
@@ -157,7 +152,6 @@ contract PrizeEventHandler is AccessControl {
      */
     function setupEvent(
         uint256 _prizeAmount,
-        uint256 _referenceBlock,
         address _prizeToken,
         uint256[] memory _winnersDistribution,
         address[] memory _voters,
@@ -173,14 +167,7 @@ contract PrizeEventHandler is AccessControl {
         }
 
         // If succeed create the storage:
-        registerEvent(
-            _prizeAmount,
-            _referenceBlock,
-            _prizeToken,
-            _winnersDistribution,
-            _voters,
-            _participants
-        );
+        registerEvent(_prizeAmount, _prizeToken, _winnersDistribution, _voters, _participants);
     }
 
     /**
@@ -188,7 +175,6 @@ contract PrizeEventHandler is AccessControl {
      */
     function registerEvent(
         uint256 _prizeAmount,
-        uint256 _referenceBlock,
         address _prizeToken,
         uint256[] memory _winnersDistribution,
         address[] memory _voters,
@@ -200,7 +186,6 @@ contract PrizeEventHandler is AccessControl {
             s_eventIdCounter.current(),
             msg.sender,
             _prizeAmount,
-            _referenceBlock,
             IERC20(_prizeToken),
             _winnersDistribution,
             _voters,
@@ -213,7 +198,7 @@ contract PrizeEventHandler is AccessControl {
 
         s_eventIdCounter.increment();
 
-        emit PrizeEventCreated(newEventId, _prizeAmount, _referenceBlock);
+        emit PrizeEventCreated(newEventId, _prizeAmount);
     }
 
     function vote(

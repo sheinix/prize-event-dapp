@@ -6,7 +6,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 
 describe("PrizeEventHandler", function () {
     let prizeAmount: BigNumber
-    let referenceBlock: BigNumber
     let winnersDistribution: bigint[] = []
     var voters: string[]
     var participants: string[]
@@ -33,7 +32,6 @@ describe("PrizeEventHandler", function () {
 
         // Prepare values:
         prizeAmount = ethers.utils.parseEther("1")
-        referenceBlock = BigNumber.from(2000000)
         winnersDistribution = [BigInt(50), BigInt(30), BigInt(20)]
         voters = []
         participants = []
@@ -48,7 +46,6 @@ describe("PrizeEventHandler", function () {
                 await expect(
                     prizeEventContract.setupEvent(
                         prizeAmount,
-                        referenceBlock,
                         testToken.address,
                         winnersDistribution,
                         voters,
@@ -65,7 +62,6 @@ describe("PrizeEventHandler", function () {
                 await expect(
                     prizeEventContract.setupEvent(
                         prizeAmount,
-                        referenceBlock,
                         testToken.address,
                         winnersDistribution,
                         voters,
@@ -83,7 +79,6 @@ describe("PrizeEventHandler", function () {
                 await expect(
                     prizeEventContract.setupEvent(
                         prizeAmount,
-                        referenceBlock,
                         testToken.address,
                         invalidWinnersDist,
                         voters,
@@ -100,7 +95,6 @@ describe("PrizeEventHandler", function () {
 
                 await prizeEventContract.setupEvent(
                     prizeAmount,
-                    referenceBlock,
                     testToken.address,
                     winnersDistribution,
                     voters,
@@ -123,16 +117,12 @@ describe("PrizeEventHandler", function () {
                 expect(
                     await prizeEventContract.setupEvent(
                         prizeAmount,
-                        referenceBlock,
                         testToken.address,
                         winnersDistribution,
                         voters,
                         participants
                     )
-                ).to.emit(
-                    prizeEventContract,
-                    `PrizeEventCreated(${0}, ${prizeAmount}, ${referenceBlock})`
-                )
+                ).to.emit(prizeEventContract, `PrizeEventCreated(${0}, ${prizeAmount})`)
             })
         })
     })
@@ -157,7 +147,6 @@ describe("PrizeEventHandler", function () {
             await testToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
-                referenceBlock,
                 testToken.address,
                 winnersDistribution,
                 voters,
@@ -182,7 +171,6 @@ describe("PrizeEventHandler", function () {
             await testToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
-                referenceBlock,
                 testToken.address,
                 winnersDistribution,
                 voters,
@@ -214,7 +202,6 @@ describe("PrizeEventHandler", function () {
             await testToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
-                referenceBlock,
                 testToken.address,
                 winnersDistribution,
                 voters,
@@ -239,7 +226,6 @@ describe("PrizeEventHandler", function () {
             await testToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
-                referenceBlock,
                 testToken.address,
                 winnersDistribution,
                 voters,
@@ -297,7 +283,6 @@ describe("PrizeEventHandler", function () {
             await testToken.approve(prizeEventContract.address, totalSupply)
             await prizeEventContract.setupEvent(
                 prizeAmount,
-                referenceBlock,
                 testToken.address,
                 winnersDistribution,
                 voters,
@@ -424,7 +409,7 @@ describe("PrizeEventHandler", function () {
             // Get the event & assert:
             const prizeEvent = await prizeEventContract.getPrizeEvent(0)
             const voteAmountForWinner = ethers.utils.parseEther("50")
-            assert.equal(prizeEvent[8].toString(), "1")
+            assert.equal(prizeEvent[7].toString(), "1")
             assert.equal(participant1Votes.toString(), voteAmountForWinner.toString())
             assert.equal(balanceInTokenForWinner.toString(), prizeAmount.div(2).toString()) // the 1st place was 50% of prize
             assert.equal(balanceInTokenFor2nd.toString(), prizeAmount.div(100).mul(30).toString()) // the 2nd place was 30% of prize
