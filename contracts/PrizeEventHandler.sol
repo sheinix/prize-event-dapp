@@ -43,8 +43,19 @@ contract PrizeEventHandler is AccessControl {
 
     // Events:
     event PrizeEventCreated(uint256 indexed eventId, uint256 indexed prizeAmount);
-
     event PrizeEventClosed(uint256 indexed eventId, uint256 indexed prizeAmount);
+    event VoteSent(
+        uint256 indexed eventId,
+        address indexed participant,
+        uint256 indexed amountOfVotes
+    );
+    event ParticipantRegistered(uint256 indexed eventId, address indexed participant);
+    event VoterRegistered(uint256 indexed eventId, address indexed voter);
+    event PrizeClaimed(
+        address indexed winner,
+        uint256 indexed winnerBalance,
+        address indexed tokenAddress
+    );
 
     //@notice the array of prize events created
     PrizeEvent[] public s_eventsArray;
@@ -217,6 +228,8 @@ contract PrizeEventHandler is AccessControl {
         }
 
         s_participantVotes[participant][eventId] += amountOfVotes;
+
+        emit VoteSent(eventId, participant, amountOfVotes);
     }
 
     function registerAsParticipant(uint256 eventId)
@@ -229,6 +242,19 @@ contract PrizeEventHandler is AccessControl {
             revert PrizeEventHandler__ParticipantAlreadyRegistered(eventId, msg.sender);
         }
         s_prizeEvents[eventId].participants.push(msg.sender);
+
+        emit ParticipantRegistered(eventId, msg.sender);
+    }
+
+    function registerVoter(address voter, uint256 eventId)
+        public
+        validEvent(eventId)
+        onlyOpenEvent(eventId)
+        onlyOwnerOf(eventId)
+    {
+        s_prizeEvents[eventId].voters.push(voter);
+
+        emit VoterRegistered(eventId, msg.sender);
     }
 
     function closeEvent(uint256 eventId)
@@ -344,6 +370,8 @@ contract PrizeEventHandler is AccessControl {
         uint256 winnerBalance = s_participantBalances[msg.sender][prizeToken];
         s_participantBalances[msg.sender][prizeToken] = 0;
         prizeToken.transfer(msg.sender, winnerBalance);
+
+        emit PrizeClaimed(msg.sender, winnerBalance, tokenAddress);
     }
 
     function getPrizeEvent(uint256 eventId) public view returns (PrizeEvent memory) {
