@@ -1,5 +1,14 @@
 # Prize Event Dapp 💰
 
+Group 12 team members - 
+- Bun Houth
+- Juan
+- Damien
+- Husni
+- Amit
+- Saing
+
+
 Prize Event Dapp is a Smart Contract written in Soilidity for anyone to run their own descentalised prize money contest. One of the main use cases is run your own Hackthons with sponsors.
 
 ### Prize Event Contract
