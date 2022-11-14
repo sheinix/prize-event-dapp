@@ -44,6 +44,8 @@ Use yarn package manager to install dependencies.
 yarn install
 ```
 
+## Flow
+![Flow](https://ibb.co/TRFnkmP)
 
 ## Contributing
 
