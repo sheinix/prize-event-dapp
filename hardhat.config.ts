@@ -4,6 +4,8 @@ import "@nomiclabs/hardhat-ethers"
 import "@nomicfoundation/hardhat-toolbox"
 import "hardhat-deploy"
 import dotenv from "dotenv"
+require("@matterlabs/hardhat-zksync-deploy")
+require("@matterlabs/hardhat-zksync-solc")
 
 dotenv.config()
 
@@ -11,6 +13,23 @@ const { ETHERSCAN_API_KEY, REPORT_GAS, COINMARKETCAP_API_KEY, GOERLI_RPC_URL, PR
     process.env
 
 const config: HardhatUserConfig = {
+    zksolc: {
+        version: "1.2.0",
+        compilerSource: "binary",
+        settings: {
+            optimizer: {
+                enabled: true,
+            },
+            experimental: {
+                dockerImage: "matterlabs/zksolc",
+                tag: "v1.2.0",
+            },
+        },
+    },
+    zkSyncDeploy: {
+        zkSyncNetwork: "https://zksync2-testnet.zksync.dev",
+        ethNetwork: "goerli", // Can also be the RPC URL of the network (e.g. `https://goerli.infura.io/v3/<API_KEY>`)
+    },
     solidity: {
         compilers: [
             {
@@ -38,6 +57,7 @@ const config: HardhatUserConfig = {
     },
     networks: {
         hardhat: {
+            zksync: true,
             // // If you want to do some forking, uncomment this
             // forking: {
             //   url: MAINNET_RPC_URL

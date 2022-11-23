@@ -36,6 +36,7 @@ describe("PrizeEventHandler", function () {
         voters = []
         participants = []
         minterRole = await voteToken.MINTER_ROLE()
+        console.log(`MINTER ROLE: ${minterRole}`)
         await voteToken.grantRole(minterRole, prizeEventContract.address)
         ;[owner, addr1] = await ethers.getSigners()
     })
